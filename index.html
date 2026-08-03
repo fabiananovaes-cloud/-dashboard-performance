@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Performance — Mídia Paga</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script>
+  // Fallback: se o CDN principal falhar, tenta um segundo CDN
+  if (typeof Chart === 'undefined') {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"><\/script>');
+  }
+</script>
+<style>
+  :root{
+    --bg:#f4f6f9;
+    --panel:#ffffff;
+    --ink:#1a2233;
+    --ink-soft:#5b6577;
+    --line:#e4e8ee;
+    --accent:#3454d1;
+    --accent-soft:#e8ecfb;
+    --good:#1f9d6b;
+    --warn:#c8811c;
+    --google:#4285F4;
+    --meta:#7b4fd6;
+    --linkedin:#0a66c2;
+    --radius:14px;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45;}
+  a{color:inherit;}
+
+  .topbar{
+    background:linear-gradient(135deg,#151b2e 0%,#232c4a 60%,#2c3766 100%);
+    color:#fff; padding:28px 32px 22px; position:relative; overflow:hidden;
+  }
+  .topbar::after{
+    content:""; position:absolute; right:-60px; top:-60px; width:260px; height:260px;
+    background:radial-gradient(circle, rgba(96,120,255,.35), transparent 70%);
+  }
+  .topbar h1{margin:0 0 4px; font-size:22px; font-weight:700; letter-spacing:.2px;}
+  .topbar p{margin:0; color:#aab3d6; font-size:13px;}
+  .topbar .badges{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; position:relative; z-index:1;}
+  .badge{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); color:#e4e8ff;
+    padding:5px 12px; border-radius:20px; font-size:12px; font-weight:500;}
+
+  .controls{
+    display:flex; gap:24px; flex-wrap:wrap; align-items:flex-end;
+    background:var(--panel); margin:-18px 32px 0; padding:16px 20px; border-radius:var(--radius);
+    box-shadow:0 8px 24px rgba(20,30,70,.08); position:relative; z-index:2;
+  }
+  .control-group{display:flex; flex-direction:column; gap:6px;}
+  .control-group label{font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-soft); font-weight:600;}
+  .chip-row{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{
+    border:1px solid var(--line); background:#fff; color:var(--ink-soft); padding:6px 13px;
+    border-radius:20px; font-size:12.5px; cursor:pointer; font-weight:500; transition:.15s;
+    user-select:none;
+  }
+  .chip:hover{border-color:var(--accent);}
+  .chip.active{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .spacer{flex:1;}
+  .export-btn{
+    background:var(--ink); color:#fff; border:none; padding:9px 16px; border-radius:10px;
+    font-size:12.5px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;
+  }
+  .export-btn:hover{background:#000;}
+
+  main{padding:24px 32px 60px; max-width:1400px; margin:0 auto;}
+
+  .section-title{display:flex; align-items:baseline; gap:10px; margin:38px 0 16px;}
+  .section-title h2{font-size:17px; margin:0; font-weight:700;}
+  .section-title span{font-size:12.5px; color:var(--ink-soft);}
+  .section-title:first-child{margin-top:0;}
+
+  .kpi-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:14px;}
+  .kpi{
+    background:var(--panel); border-radius:var(--radius); padding:16px 18px;
+    border:1px solid var(--line);
+  }
+  .kpi .label{font-size:11.5px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:.4px;}
+  .kpi .value{font-size:22px; font-weight:700; margin-top:6px; letter-spacing:-.3px;}
+  .kpi .sub{font-size:11.5px; color:var(--ink-soft); margin-top:4px;}
+
+  .grid-2{display:grid; grid-template-columns:1.1fr 1fr; gap:16px;}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  .panel{
+    background:var(--panel); border-radius:var(--radius); padding:18px 20px;
+    border:1px solid var(--line);
+  }
+  .panel h3{margin:0 0 2px; font-size:14px; font-weight:700;}
+  .panel .desc{font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;}
+  .chart-wrap{position:relative; height:260px;}
+  .chart-wrap.tall{height:320px;}
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  thead th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.4px;
+    color:var(--ink-soft); border-bottom:2px solid var(--line); padding:8px 10px; font-weight:700;
+    cursor:pointer; white-space:nowrap;
+  }
+  thead th:hover{color:var(--accent);}
+  tbody td{padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
+  tbody tr:hover{background:#f8f9fc;}
+  .tag{padding:2px 8px; border-radius:12px; font-size:10.5px; font-weight:700; color:#fff;}
+  .tag.google{background:var(--google);}
+  .tag.meta{background:var(--meta);}
+  .tag.linkedin{background:var(--linkedin);}
+  .status-dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px;}
+  .status-dot.on{background:var(--good);}
+  .status-dot.off{background:#c4c9d4;}
+
+  .table-scroll{overflow-x:auto; max-height:480px; overflow-y:auto;}
+  .table-toolbar{display:flex; gap:10px; margin-bottom:12px; align-items:center; flex-wrap:wrap;}
+  .search-input{
+    border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12.5px;
+    flex:1; min-width:200px; max-width:320px;
+  }
+  .placeholder-card{
+    background:repeating-linear-gradient(135deg, #fafbff, #fafbff 10px, #f3f5fc 10px, #f3f5fc 20px);
+    border:1.5px dashed #c7cee6; border-radius:var(--radius); padding:36px 24px; text-align:center;
+    color:var(--ink-soft);
+  }
+  .placeholder-card strong{display:block; color:var(--ink); font-size:15px; margin-bottom:6px;}
+  .placeholder-card .hint{font-size:12px; margin-top:10px; color:#8993ab;}
+
+  footer{text-align:center; padding:24px; font-size:11.5px; color:#9aa2b5;}
+
+  @media (max-width: 1100px){
+    .kpi-grid{grid-template-columns:repeat(3,1fr);}
+    .grid-2{grid-template-columns:1fr;}
+    .grid-3{grid-template-columns:1fr;}
+  }
+  @media (max-width: 640px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .topbar, main{padding-left:16px; padding-right:16px;}
+    .controls{margin-left:16px; margin-right:16px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Dashboard de Performance</h1>
+  <p>Dimensa · Agger · Tô Segurado · Quiver — Mídia Paga (Google Ads, Meta Ads, LinkedIn Ads)</p>
+  <div class="badges" id="periodBadges"></div>
+</div>
+
+<div class="controls">
+  <div class="control-group">
+    <label>Período</label>
+    <div class="chip-row" id="mesFilter"></div>
+  </div>
+  <div class="control-group">
+    <label>Canal</label>
+    <div class="chip-row" id="canalFilter"></div>
+  </div>
+  <div class="control-group">
+    <label>Conta</label>
+    <div class="chip-row" id="contaFilter"></div>
+  </div>
+  <div class="spacer"></div>
+  <button class="export-btn" id="exportCsv">⬇ Exportar CSV</button>
+</div>
+
+<main>
+
+  <div class="section-title"><h2>Visão geral</h2><span>Resumo consolidado do período selecionado</span></div>
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="grid-2" style="margin-top:16px;">
+    <div class="panel">
+      <h3>Investimento por canal</h3>
+      <div class="desc">Distribuição do budget</div>
+      <div class="chart-wrap"><canvas id="chartInvCanal"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Top campanhas</h3>
+      <div class="desc">8 maiores por investimento</div>
+      <div class="chart-wrap"><canvas id="chartTopCampanhas"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:16px;">
+    <div class="panel">
+      <h3>Leads por canal</h3>
+      <div class="desc">Volume e CPL médio</div>
+      <div class="chart-wrap"><canvas id="chartLeads"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Conversões por canal</h3>
+      <div class="desc">Volume e CPA médio</div>
+      <div class="chart-wrap"><canvas id="chartConv"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:16px;">
+    <div class="panel">
+      <h3>CTR por canal (%)</h3>
+      <div class="desc">Taxa de cliques média</div>
+      <div class="chart-wrap"><canvas id="chartCtr"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>CPM por canal (R$)</h3>
+      <div class="desc">Custo por mil impressões</div>
+      <div class="chart-wrap"><canvas id="chartCpm"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title"><h2>Detalhe</h2><span>Detalhamento por campanha</span></div>
+  <div class="panel">
+    <div class="table-toolbar">
+      <input class="search-input" id="tableSearch" placeholder="Buscar campanha...">
+      <span id="tableCount" style="font-size:12px;color:var(--ink-soft);"></span>
+    </div>
+    <div class="table-scroll">
+      <table id="detailTable">
+        <thead>
+          <tr>
+            <th data-key="mes">Mês</th>
+            <th data-key="conta">Conta</th>
+            <th data-key="canal">Canal</th>
+            <th data-key="campanha">Campanha</th>
+            <th data-key="investimento">Investimento</th>
+            <th data-key="impressoes">Impressões</th>
+            <th data-key="cliques">Cliques</th>
+            <th data-key="ctr">CTR</th>
+            <th data-key="cpc">CPC</th>
+            <th data-key="cpm">CPM</th>
+            <th data-key="leads">Leads</th>
+            <th data-key="cpl">CPL</th>
+            <th data-key="conv">Conv.</th>
+            <th data-key="cpa">CPA</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section-title"><h2>MQLs HubSpot</h2><span>Aguardando integração com o HubSpot</span></div>
+  <div class="grid-3">
+    <div class="placeholder-card">
+      <strong>MQLs por BU</strong>
+      Distribuição por produto
+      <div class="hint">Envie a exportação do HubSpot para preencher esta seção</div>
+    </div>
+    <div class="placeholder-card">
+      <strong>Custo por MQL por BU</strong>
+      Investimento / MQLs por BU
+      <div class="hint">Envie a exportação do HubSpot para preencher esta seção</div>
+    </div>
+    <div class="placeholder-card">
+      <strong>MQLs por origem</strong>
+      Pesquisa paga vs Social pago vs Orgânico
+      <div class="hint">Envie a exportação do HubSpot para preencher esta seção</div>
+    </div>
+  </div>
+
+  <div class="section-title"><h2>Campanhas por BU</h2><span>Cada conta tratada como uma unidade de negócio</span></div>
+
+  <div class="controls" style="margin:0 0 16px;">
+    <div class="control-group">
+      <label>Canal (BU)</label>
+      <div class="chip-row" id="buCanalFilter"></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <h3>Investimento por BU</h3>
+      <div class="desc">Budget por linha de negócio</div>
+      <div class="chart-wrap"><canvas id="chartInvBu"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Top campanhas por BU</h3>
+      <div class="desc">8 maiores por investimento</div>
+      <div class="chart-wrap"><canvas id="chartTopBu"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <h3>Todas as campanhas por BU</h3>
+    <div class="table-scroll">
+      <table id="buTable">
+        <thead>
+          <tr>
+            <th data-key="mes">Mês</th>
+            <th data-key="conta">BU</th>
+            <th data-key="canal">Canal</th>
+            <th data-key="campanha">Campanha</th>
+            <th data-key="investimento">Investimento</th>
+            <th data-key="impressoes">Impressões</th>
+            <th data-key="cliques">Cliques</th>
+            <th data-key="ctr">CTR</th>
+            <th data-key="cpc">CPC</th>
+            <th data-key="cpm">CPM</th>
+            <th data-key="leads">Leads</th>
+            <th data-key="conv">Conv.</th>
+            <th data-key="cpa">CPA</th>
+          </tr>
+        </thead>
+        <tbody id="buBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>Dashboard gerado a partir dos relatórios de Google Ads, Meta Ads e LinkedIn Ads · Atualizado com dados completos de Maio, Junho e Julho/2026</footer>
+
+<script>
+const RAW_DATA = {"meses": {"2026-05": "Maio/26", "2026-06": "Junho/26", "2026-07": "Julho/26"}, "contas": {"quiver": "Quiver", "dimensa": "Dimensa", "tosegurado": "Tô Segurado", "agger": "Agger"}, "records": [{"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Remarketing", "status": "active", "investimento": 1823.1, "impressoes": 122767, "cliques": 445, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Vendas no Consórcio - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Aggilizador - Teste Criativos novos", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Reconhecimento", "status": "active", "investimento": 694.62, "impressoes": 471791, "cliques": 285, "leads": 0.0, "conv": 398383.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Newsletter - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Etapa Funil de Conversão - Tráfego", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Guia de Marketing e Vendas - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Estagio do Funil - Remarketing", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Gestor", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Programa de Indicação - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Reconhecimento CONEC", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Calendário 2026 - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Plano de Saúde - Material Rico", "status": "active", "investimento": 182.3, "impressoes": 6332, "cliques": 126, "leads": 33.0, "conv": 33.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Painel do Corretor", "status": "not_delivering", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Aggilizador - cidades", "status": "inactive", "investimento": 62.09, "impressoes": 3400, "cliques": 21, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "H-MaterialRico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "H-MaterialRico-Conversao", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[8DH] Material Rico - Conversão", "status": "inactive", "investimento": 86.82, "impressoes": 917, "cliques": 8, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu", "status": "active", "investimento": 1041.39, "impressoes": 14128, "cliques": 692, "leads": 18.0, "conv": 18.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[8DH] Dimensa Vadu Basic - Para LP", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic — Para o site", "status": "active", "investimento": 1683.95, "impressoes": 24466, "cliques": 1305, "leads": 16.0, "conv": 16.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic — Para o site — Conversão Personalizada", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic - Para LP — Advantage+", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[Reconhecimento] Vadu", "status": "active", "investimento": 1138.43, "impressoes": 437813, "cliques": 355, "leads": 0.0, "conv": 5480.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu — Remarketing", "status": "active", "investimento": 773.41, "impressoes": 17650, "cliques": 107, "leads": 3.0, "conv": 3.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa_Social_Engajamento0", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa_Social_Engajamento11", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "TESTE LP", "status": "not_delivering", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Meta Ads", "campanha": "TESTE LP — Cópia", "status": "active", "investimento": 737.46, "impressoes": 10260, "cliques": 489, "leads": 42.0, "conv": 42.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Meta Ads", "campanha": "[Conversões] Cadastros", "status": "active", "investimento": 3493.6, "impressoes": 239799, "cliques": 3695, "leads": 330.0, "conv": 330.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "Reconhecimento", "status": "not_delivering", "investimento": 200.81, "impressoes": 112174, "cliques": 0, "leads": 0.0, "conv": 1870.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "MOTO | Tô Segurado", "status": "not_delivering", "investimento": 740.48, "impressoes": 50017, "cliques": 0, "leads": 94.0, "conv": 94.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "[IG] PUB IDEAL SET. | Tô Segurado", "status": "not_delivering", "investimento": 2430.1, "impressoes": 107581, "cliques": 0, "leads": 304.0, "conv": 304.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "[FB] PUB IDEAL | Tô Segurado", "status": "not_delivering", "investimento": 902.99, "impressoes": 47486, "cliques": 0, "leads": 75.0, "conv": 75.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "RMKT", "status": "not_delivering", "investimento": 412.34, "impressoes": 12677, "cliques": 0, "leads": 0.0, "conv": 7.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "AUTO | Tô Segurado", "status": "not_delivering", "investimento": 322.57, "impressoes": 20211, "cliques": 0, "leads": 10.0, "conv": 10.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Remarketing", "status": "active", "investimento": 1848.15, "impressoes": 147741, "cliques": 511, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Vendas no Consórcio - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Aggilizador - Teste Criativos novos", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Reconhecimento", "status": "active", "investimento": 599.4, "impressoes": 422502, "cliques": 221, "leads": 0.0, "conv": 338373.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Newsletter - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Etapa Funil de Conversão - Tráfego", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Guia de Marketing e Vendas - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Estagio do Funil - Remarketing", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Gestor", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Programa de Indicação - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Reconhecimento CONEC", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Calendário 2026 - Material Rico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Plano de Saúde - Material Rico", "status": "active", "investimento": 253.72, "impressoes": 9461, "cliques": 185, "leads": 51.0, "conv": 51.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Painel do Corretor", "status": "active", "investimento": 396.78, "impressoes": 19266, "cliques": 177, "leads": 0.0, "conv": 15.0}, {"mes": "2026-05", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Aggilizador - cidades", "status": "inactive", "investimento": 363.07, "impressoes": 20378, "cliques": 132, "leads": 0.0, "conv": 4.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "H-MaterialRico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "H-MaterialRico-Conversao", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[8DH] Material Rico - Conversão", "status": "inactive", "investimento": 830.96, "impressoes": 10754, "cliques": 70, "leads": 1.0, "conv": 1.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu", "status": "active", "investimento": 580.42, "impressoes": 6326, "cliques": 72, "leads": 6.0, "conv": 6.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[8DH] Dimensa Vadu Basic - Para LP", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic — Para o site", "status": "active", "investimento": 1653.01, "impressoes": 17396, "cliques": 561, "leads": 8.0, "conv": 8.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic — Para o site — Conversão Personalizada", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic - Para LP — Advantage+", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[Reconhecimento] Vadu", "status": "active", "investimento": 1045.57, "impressoes": 369886, "cliques": 353, "leads": 0.0, "conv": 6200.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu — Remarketing", "status": "active", "investimento": 2088.67, "impressoes": 39629, "cliques": 192, "leads": 2.0, "conv": 2.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa_Social_Engajamento0", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Meta Ads", "campanha": "[Conversões] Cadastros", "status": "active", "investimento": 3508.35, "impressoes": 209226, "cliques": 0, "leads": 321.0, "conv": 321.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "Reconhecimento", "status": "active", "investimento": 280.57, "impressoes": 153903, "cliques": 0, "leads": 0.0, "conv": 4130.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "MOTO | Tô Segurado", "status": "active", "investimento": 810.87, "impressoes": 60268, "cliques": 0, "leads": 79.0, "conv": 79.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "[IG] PUB IDEAL SET. | Tô Segurado", "status": "active", "investimento": 2797.48, "impressoes": 141240, "cliques": 0, "leads": 338.0, "conv": 338.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "[FB] PUB IDEAL | Tô Segurado", "status": "active", "investimento": 1310.1, "impressoes": 76092, "cliques": 0, "leads": 113.0, "conv": 113.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "RMKT", "status": "active", "investimento": 318.9, "impressoes": 9851, "cliques": 0, "leads": 0.0, "conv": 7.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "AUTO | Tô Segurado", "status": "active", "investimento": 138.42, "impressoes": 6912, "cliques": 0, "leads": 4.0, "conv": 4.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Display | Portais", "status": "Qualificado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display", "status": "Qualificado (limitado)", "investimento": 3181.34, "impressoes": 483000, "cliques": 14954, "leads": 3132.47, "conv": 3132.47}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Search - PDC", "status": "Qualificado (limitado)", "investimento": 622.56, "impressoes": 3536, "cliques": 700, "leads": 39.45, "conv": 39.45}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Youtube - Reconhecimento", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Gestor", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Search - agger word", "status": "Qualificado (limitado)", "investimento": 263.35, "impressoes": 2959, "cliques": 1371, "leads": 44.5, "conv": 44.5}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Display", "status": "Qualificado", "investimento": 813.58, "impressoes": 114817, "cliques": 3837, "leads": 723.94, "conv": 723.94}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Display - Novo", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Tráfego | Agger Search", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Agger Search - Concorrentes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Blog Tráfego", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Multicálculo", "status": "Qualificado", "investimento": 1341.48, "impressoes": 5022, "cliques": 1422, "leads": 52.58, "conv": 52.58}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Youtube - Reconhecimento #2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display - Remarketing", "status": "Qualificado (limitado)", "investimento": 1582.3, "impressoes": 372490, "cliques": 8164, "leads": 1830.62, "conv": 1830.62}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Multicálculo teste url final", "status": "Pausado", "investimento": 180.37, "impressoes": 727, "cliques": 193, "leads": 13.0, "conv": 13.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Geração de demanda", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Agger Search | Agger keywords", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Infocap Search", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Corp by Agger - Concorrentes e notícias", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "agger", "canal": "Google Ads", "campanha": "Display | IOS", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max Crédito e Risco", "status": "Qualificado", "investimento": 6331.34, "impressoes": 31728, "cliques": 2274, "leads": 31.97, "conv": 31.97}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max Crédito e Risco - rmkt", "status": "Qualificado", "investimento": 2652.77, "impressoes": 102781, "cliques": 3514, "leads": 16.0, "conv": 16.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "Background Check", "status": "Qualificado", "investimento": 2096.53, "impressoes": 2745, "cliques": 391, "leads": 9.0, "conv": 9.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "Core Banking", "status": "Qualificado", "investimento": 1895.81, "impressoes": 2363, "cliques": 64, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "Crédito e Risco - VADU Word #2", "status": "Qualificado", "investimento": 3912.6, "impressoes": 1658, "cliques": 261, "leads": 11.0, "conv": 11.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "Display [Vadu] #2", "status": "Qualificado", "investimento": 344.25, "impressoes": 3965, "cliques": 200, "leads": 31.0, "conv": 31.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "Geração de Demanda [Vadu] #2", "status": "Qualificado", "investimento": 1185.67, "impressoes": 23794, "cliques": 332, "leads": 1.0, "conv": 1.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "Google Ads", "campanha": "Crédito e Risco", "status": "Qualificado", "investimento": 27292.95, "impressoes": 12840, "cliques": 623, "leads": 37.0, "conv": 37.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "pesquisa-multicálculo", "status": "Qualificado (limitado)", "investimento": 2054.27, "impressoes": 1939, "cliques": 102, "leads": 10.5, "conv": 10.5}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Quiver EB", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Institucional", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "IM", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Aquisição", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "R", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "DSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Datasheets", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Concorrentes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "CD", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Benefícios", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "ON", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Multicálculo zzz", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "QS", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Software", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "CR", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Youtube :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "demand-gen", "status": "Qualificado", "investimento": 384.65, "impressoes": 81476, "cliques": 2859, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Figital", "status": "Pausado", "investimento": 262.78, "impressoes": 72168, "cliques": 2503, "leads": 2.0, "conv": 2.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "pesquisa-institucional", "status": "Qualificado", "investimento": 3040.38, "impressoes": 8850, "cliques": 2356, "leads": 122.5, "conv": 122.5}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Aquisição", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "RDSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Quiver IN", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Broad", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "pesquisa-gestão", "status": "Qualificado", "investimento": 2212.43, "impressoes": 2421, "cliques": 158, "leads": 10.5, "conv": 10.5}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "R2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Quiver IN", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "Google Ads", "campanha": "QM", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Moto", "status": "Qualificado (limitado)", "investimento": 608.13, "impressoes": 3364, "cliques": 416, "leads": 534.0, "conv": 534.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Residência", "status": "Qualificado (limitado)", "investimento": 360.24, "impressoes": 2010, "cliques": 316, "leads": 8.0, "conv": 8.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Vida", "status": "Qualificado (limitado)", "investimento": 304.18, "impressoes": 2086, "cliques": 317, "leads": 9.0, "conv": 9.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Geral", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "To_Segurado_Performance_Max | Carro", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "PERFORMANCE MAX", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Carro TESTE DE URL - SEARCH CARRO", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search Teste de url", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Carro", "status": "Qualificado (limitado)", "investimento": 1218.51, "impressoes": 11210, "cliques": 1538, "leads": 2089.0, "conv": 2089.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "To_Segurado_Performance_Max | Moto", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search Teste de URL_02", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Display - Geral", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Display", "status": "Qualificado (limitado)", "investimento": 987.19, "impressoes": 88893, "cliques": 4180, "leads": 856.12, "conv": 856.12}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Blog Tráfego", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Tráfego | Agger Search", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Display - Novo", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Agger Search - Concorrentes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Multicálculo", "status": "Qualificado (limitado)", "investimento": 1473.17, "impressoes": 6388, "cliques": 1493, "leads": 45.58, "conv": 45.58}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Youtube - Reconhecimento #2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Display | Portais", "status": "Qualificado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display", "status": "Qualificado (limitado)", "investimento": 2573.73, "impressoes": 274053, "cliques": 10997, "leads": 2360.78, "conv": 2360.78}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Search - PDC", "status": "Qualificado", "investimento": 604.12, "impressoes": 4336, "cliques": 638, "leads": 63.22, "conv": 63.22}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Gestor", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Youtube - Reconhecimento", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display - Remarketing", "status": "Qualificado (limitado)", "investimento": 1107.92, "impressoes": 153299, "cliques": 5143, "leads": 1138.01, "conv": 1138.01}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Corp by Agger - Concorrentes e notícias", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Agger Search | Agger keywords", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Infocap Search", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Geração de demanda", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "agger", "canal": "Google Ads", "campanha": "Display | IOS", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Crédito e Risco", "status": "Qualificado (limitado)", "investimento": 27123.17, "impressoes": 19528, "cliques": 965, "leads": 53.0, "conv": 53.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Geração de Demanda [Vadu]", "status": "Pausado", "investimento": 0.34, "impressoes": 22, "cliques": 1, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Geração de Demanda [Vadu] #2", "status": "Pausado", "investimento": 514.38, "impressoes": 8672, "cliques": 138, "leads": 2.0, "conv": 2.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Performance Max 2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "s_cartoes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Campanha Institucional", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Gestão de Recebíveis", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Crédito e Risco Teste Publico alvo", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Fundos de Investimentos", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] WebCred", "status": "Pausado", "investimento": 2656.2, "impressoes": 2697, "cliques": 113, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Gestão de Risco", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "DIMENSA_CONV_AON_MEIO_NATIVA_FUNDO-DE-INVESTIMENTO", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Alerta Compliance", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Search-1", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Workflow para Crédito", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max RegWatch", "status": "Pausado", "investimento": 518.49, "impressoes": 3514, "cliques": 244, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max Crédito e Risco - rmkt", "status": "Pausado", "investimento": 4145.85, "impressoes": 153058, "cliques": 8265, "leads": 12.33, "conv": 12.33}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Background Check", "status": "Qualificado (limitado)", "investimento": 1540.83, "impressoes": 2199, "cliques": 298, "leads": 5.0, "conv": 5.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Performance Max Vadu", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Pauta_Setembro_INSTITUCIONAL - VÍDEO INSTITUCIONAL DIMENSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "RegWatch", "status": "Pausado", "investimento": 1680.73, "impressoes": 3011, "cliques": 67, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max Crédito e Risco", "status": "Pausado", "investimento": 5310.87, "impressoes": 21873, "cliques": 1852, "leads": 13.05, "conv": 13.05}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max WebCred", "status": "Pausado", "investimento": 1176.03, "impressoes": 19527, "cliques": 1111, "leads": 1.0, "conv": 1.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Pauta_Março_Vídeo-Institucional", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "s_banking", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Background Check", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Performance Max", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Crédito e Risco - VADU Word", "status": "Qualificado (aprendizado)", "investimento": 3246.97, "impressoes": 1628, "cliques": 211, "leads": 10.0, "conv": 10.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Display [Vadu] #2", "status": "Pausado", "investimento": 1378.42, "impressoes": 7182, "cliques": 904, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Branding - YouTube [Vadu]", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "DIMENSA_CONV_AON_FUNDO_NATIVA_CRÉDITO", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Onboarding Digital", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Display [Vadu]", "status": "Pausado", "investimento": 869.78, "impressoes": 5095, "cliques": 244, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Core Banking", "status": "Qualificado (aprendizado)", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "Crédito e Risco - VADU Word #2", "status": "Qualificado (aprendizado)", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Banco Digital", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Multicálculo zzz", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "ON", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Benefícios", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Software", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "CR", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "QS", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "CD", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Concorrentes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Youtube :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Datasheets", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa | Multicálculo", "status": "Qualificado (limitado)", "investimento": 1886.81, "impressoes": 1887, "cliques": 104, "leads": 6.0, "conv": 6.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Quiver EB", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Institucional", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "IM", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "R", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Aquisição", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "DSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa | Gestão", "status": "Qualificado", "investimento": 2310.6, "impressoes": 2829, "cliques": 138, "leads": 11.0, "conv": 11.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "R2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Quiver IN", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "QM", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa | Quiver", "status": "Qualificado", "investimento": 2948.65, "impressoes": 8812, "cliques": 2297, "leads": 143.25, "conv": 143.25}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Soluções Clientes", "status": "Qualificado", "investimento": 304.29, "impressoes": 78638, "cliques": 2526, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Figital", "status": "Qualificado", "investimento": 304.25, "impressoes": 91367, "cliques": 3211, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Aquisição", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Broad", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Quiver IN", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "quiver", "canal": "Google Ads", "campanha": "RDSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Moto", "status": "Não qualificado", "investimento": 603.27, "impressoes": 3776, "cliques": 497, "leads": 574.0, "conv": 574.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Carro", "status": "Qualificado (limitado)", "investimento": 1216.9, "impressoes": 9995, "cliques": 1574, "leads": 2030.0, "conv": 2030.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search Teste de URL_02", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Carro TESTE DE URL - SEARCH CARRO", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "To_Segurado_Performance_Max | Moto", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Display - Geral", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "PERFORMANCE MAX", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "To_Segurado_Performance_Max | Carro", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search Teste de url", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Vida", "status": "Qualificado (limitado)", "investimento": 305.57, "impressoes": 1833, "cliques": 234, "leads": 14.0, "conv": 14.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Residência", "status": "Qualificado (limitado)", "investimento": 368.33, "impressoes": 1970, "cliques": 233, "leads": 13.0, "conv": 13.0}, {"mes": "2026-05", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Geral", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Background Check] Tráfego - Junho", "status": "Ativo", "investimento": 2840.5, "impressoes": 146796, "cliques": 3224, "leads": 0.0, "conv": 0.0}, {"mes": "2026-06", "conta": "quiver", "canal": "LinkedIn Ads", "campanha": "Studio61", "status": "Ativo", "investimento": 3453.29, "impressoes": 101302, "cliques": 3118, "leads": 0.0, "conv": 0.0}, {"mes": "2026-05", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Regwatch]conversão_ebook_maio", "status": "Pausado", "investimento": 1646.17, "impressoes": 1758, "cliques": 6, "leads": 2.0, "conv": 2.0}, {"mes": "2026-05", "conta": "quiver", "canal": "LinkedIn Ads", "campanha": "Studio61", "status": "Ativo", "investimento": 3473.21, "impressoes": 141915, "cliques": 3509, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Remarketing", "status": "active", "investimento": 2475.74, "impressoes": 152007, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Reconhecimento", "status": "active", "investimento": 867.01, "impressoes": 612453, "cliques": 0, "leads": 0.0, "conv": 465761.0}, {"mes": "2026-07", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Plano de Saúde - Material Rico", "status": "active", "investimento": 264.17, "impressoes": 8330, "cliques": 0, "leads": 65.0, "conv": 65.0}, {"mes": "2026-07", "conta": "agger", "canal": "Meta Ads", "campanha": "Agger - Aggilizador - cidades", "status": "active", "investimento": 371.59, "impressoes": 20499, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "H-MaterialRico", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "H-MaterialRico-Conversao", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[8DH] Material Rico - Conversão", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu", "status": "inactive", "investimento": 1554.18, "impressoes": 21271, "cliques": 1338, "leads": 335.0, "conv": 335.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[8DH] Dimensa Vadu Basic - Para LP", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic — Para o site", "status": "inactive", "investimento": 1553.93, "impressoes": 20779, "cliques": 1498, "leads": 361.0, "conv": 361.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic — Para o site — Conversão Personalizada", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa Vadu Basic - Para LP — Advantage+", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[Vadu] -  Reconhecimento", "status": "inactive", "investimento": 612.43, "impressoes": 287219, "cliques": 219, "leads": 0.0, "conv": 3300.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[Vadu] — Remarketing", "status": "inactive", "investimento": 771.97, "impressoes": 11102, "cliques": 139, "leads": 14.0, "conv": 14.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa_Social_Engajamento0", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "Dimensa_Social_Engajamento11", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "TESTE LP", "status": "inactive", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "TESTE LP — Cópia", "status": "inactive", "investimento": 1584.16, "impressoes": 22944, "cliques": 1092, "leads": 159.0, "conv": 159.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[Vadu] [Branding] [Reels]", "status": "active", "investimento": 238.27, "impressoes": 16228, "cliques": 87, "leads": 0.0, "conv": 7218.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Meta Ads", "campanha": "[Vadu] [Branding] [Estáticos]", "status": "active", "investimento": 237.26, "impressoes": 127168, "cliques": 161, "leads": 0.0, "conv": 990.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Meta Ads", "campanha": "[Conversões] Cadastros", "status": "active", "investimento": 3266.83, "impressoes": 284746, "cliques": 4329, "leads": 383.0, "conv": 383.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Meta Ads", "campanha": "RECONHECIMENTO", "status": "active", "investimento": 131.22, "impressoes": 68452, "cliques": 48, "leads": 0.0, "conv": 630.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Meta Ads", "campanha": "MATERIAL RICO", "status": "active", "investimento": 43.05, "impressoes": 970, "cliques": 15, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "Reconhecimento", "status": "active", "investimento": 130.49, "impressoes": 71536, "cliques": 0, "leads": 0.0, "conv": 1430.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "MOTO | Tô Segurado", "status": "active", "investimento": 519.79, "impressoes": 29740, "cliques": 0, "leads": 58.0, "conv": 58.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "[IG] PUB IDEAL SET. | Tô Segurado", "status": "active", "investimento": 1167.64, "impressoes": 60349, "cliques": 0, "leads": 220.0, "conv": 220.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "[FB] PUB IDEAL | Tô Segurado", "status": "active", "investimento": 432.1, "impressoes": 28763, "cliques": 0, "leads": 59.0, "conv": 59.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Meta Ads", "campanha": "RMKT", "status": "active", "investimento": 263.76, "impressoes": 7033, "cliques": 0, "leads": 0.0, "conv": 1.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Display | Portais", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display | IOS", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display", "status": "Qualificado (limitado)", "investimento": 2635.99, "impressoes": 132563, "cliques": 7631, "leads": 2251.21, "conv": 2251.21}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Search - PDC", "status": "Qualificado", "investimento": 522.33, "impressoes": 3387, "cliques": 755, "leads": 43.06, "conv": 43.06}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Youtube - Reconhecimento", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Aggilizador de Cálculos", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Gestor", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Display", "status": "Qualificado", "investimento": 371.55, "impressoes": 32076, "cliques": 1966, "leads": 476.0, "conv": 476.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Search - agger word", "status": "Pausado", "investimento": 771.08, "impressoes": 5338, "cliques": 2393, "leads": 122.02, "conv": 122.02}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Blog Tráfego", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Tráfego | Agger Search", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Display - Novo", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Agger Search - Concorrentes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Multicálculo TESTE URL", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Multicálculo", "status": "Pausado", "investimento": 523.36, "impressoes": 2535, "cliques": 690, "leads": 32.57, "conv": 32.57}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Youtube - Reconhecimento #2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Display - Remarketing", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "PMax: Display - Remarketing", "status": "Qualificado (limitado)", "investimento": 1208.69, "impressoes": 271829, "cliques": 7006, "leads": 1566.84, "conv": 1566.84}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Agger Search | Agger keywords", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Infocap Search", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Corp by Agger - Concorrentes e notícias", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Multicálculo teste url final", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Geração de demanda", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Search - Multicálculo URL Final", "status": "Qualificado", "investimento": 1459.24, "impressoes": 5803, "cliques": 1837, "leads": 174.08, "conv": 174.08}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Display | IOS", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "agger", "canal": "Google Ads", "campanha": "Aggilizador Novo", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Gestão de Risco", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "Search-1", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Alerta Compliance", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "DIMENSA_CONV_AON_MEIO_NATIVA_FUNDO-DE-INVESTIMENTO", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] WebCred", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Workflow para Crédito", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[Vadu] - Geração de Demanda", "status": "Qualificado", "investimento": 1559.7, "impressoes": 80426, "cliques": 2644, "leads": 59.0, "conv": 59.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[Vadu] - Crédito e Risco - Search", "status": "Qualificado", "investimento": 22402.72, "impressoes": 15196, "cliques": 655, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "s_cartoes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Campanha Institucional", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Performance Max 2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Crédito e Risco Teste Publico alvo", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Gestão de Recebíveis", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "Geração de Demanda [Vadu]", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Fundos de Investimentos", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[VADU] - Display", "status": "Qualificado", "investimento": 1428.12, "impressoes": 158049, "cliques": 878, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "Crédito e Risco - VADU Word", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "Branding - YouTube [Vadu]", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Onboarding Digital", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "DIMENSA_CONV_AON_FUNDO_NATIVA_CRÉDITO", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[Webcred] - Search", "status": "Qualificado", "investimento": 3348.48, "impressoes": 4047, "cliques": 125, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[Vadu] - Crédito e Risco - Vadu Word", "status": "Qualificado", "investimento": 7259.55, "impressoes": 2817, "cliques": 367, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Banco Digital", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "Display [Vadu]", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[Vadu] - P.Max  - RMKT", "status": "Qualificado", "investimento": 2093.6, "impressoes": 18235, "cliques": 3959, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[Background Check] - Search", "status": "Qualificado (limitado)", "investimento": 503.26, "impressoes": 1451, "cliques": 283, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max RegWatch", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Performance Max Vadu", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "Pauta_Setembro_INSTITUCIONAL - VÍDEO INSTITUCIONAL DIMENSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[BGC] - P.Max", "status": "Qualificado", "investimento": 459.49, "impressoes": 4960, "cliques": 372, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[Vadu] - P.Max", "status": "Pausado", "investimento": 10448.11, "impressoes": 66726, "cliques": 8598, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "RegWatch", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "Pauta_Março_Vídeo-Institucional", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "P.Max WebCred", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "(8DHubify) [Qualificar] Performance Max", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "s_banking", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "Google Ads", "campanha": "[8DH] [Qualificar] Background Check", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "demand-gen", "status": "Pausado", "investimento": 711.52, "impressoes": 123198, "cliques": 4763, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Aquisição", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "RDSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "pesquisa-gestão", "status": "Qualificado", "investimento": 2430.33, "impressoes": 2603, "cliques": 173, "leads": 10.5, "conv": 10.5}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Broad", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Concorrentes", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Software", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "R2", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "pesquisa-institucional", "status": "Pausado", "investimento": 2374.5, "impressoes": 6705, "cliques": 2023, "leads": 126.0, "conv": 126.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Quiver EB", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "CD", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Youtube :: Remarketing", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Quiver IN", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Aquisição", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "R", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery :: Figital", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Quiver IN", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "CR", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "ON", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Multicálculo zzz", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "DSA", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Institucional", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "pesquisa-multicálculo", "status": "Pausado", "investimento": 1439.69, "impressoes": 1244, "cliques": 84, "leads": 10.5, "conv": 10.5}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "IM", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Discovery", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "QS", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Display :: Datasheets", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "QM", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "Google Ads", "campanha": "Pesquisa :: Benefícios", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Moto", "status": "Qualificado (limitado)", "investimento": 602.7, "impressoes": 2841, "cliques": 443, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Residência", "status": "Qualificado (limitado)", "investimento": 365.07, "impressoes": 3994, "cliques": 533, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search #2", "status": "Removido", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Vida", "status": "Qualificado", "investimento": 305.27, "impressoes": 2822, "cliques": 375, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "PERFORMANCE MAX", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Geral", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "To_Segurado_Performance_Max | Carro", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Carro TESTE DE URL - SEARCH CARRO", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search Teste de url", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search | Carro", "status": "Qualificado (limitado)", "investimento": 1216.54, "impressoes": 10937, "cliques": 1589, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "To_Segurado_Performance_Max | Moto", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Tô Segurado_Search Teste de URL_02", "status": "Encerrado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "tosegurado", "canal": "Google Ads", "campanha": "Display - Geral", "status": "Pausado", "investimento": 0.0, "impressoes": 0, "cliques": 0, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Background Check] Segmentação_LKD", "status": "Pausado", "investimento": 2189.1, "impressoes": 170015, "cliques": 4129, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Background Check] - base_compliance", "status": "Pausado", "investimento": 202.17, "impressoes": 10214, "cliques": 146, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Institucional] - Expocompliance", "status": "Ativo", "investimento": 231.45, "impressoes": 23807, "cliques": 291, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Background Check] Conversão - LL Compliance", "status": "Ativo", "investimento": 216.34, "impressoes": 17559, "cliques": 283, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Background Check] Conversão_base_compliance", "status": "Ativo", "investimento": 218.21, "impressoes": 10631, "cliques": 157, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "dimensa", "canal": "LinkedIn Ads", "campanha": "[Background Check] Conversão_segmentação_LKD", "status": "Ativo", "investimento": 215.79, "impressoes": 11085, "cliques": 169, "leads": 0.0, "conv": 0.0}, {"mes": "2026-07", "conta": "quiver", "canal": "LinkedIn Ads", "campanha": "Camp.01", "status": "Ativo", "investimento": 3626.76, "impressoes": 107657, "cliques": 3637, "leads": 0.0, "conv": 0.0}]};
+
+</script>
+<script>
+/* ============================================================
+   Dashboard de Performance — lógica de filtros, gráficos e export
+   Dados vêm de data.js (RAW_DATA), gerado a partir dos relatórios
+   de Google Ads / Meta Ads / LinkedIn Ads.
+   ============================================================ */
+
+const MESES = RAW_DATA.meses;           // {'2026-05': 'Maio/26', ...}
+const CONTAS = RAW_DATA.contas;         // {'quiver': 'Quiver', ...}
+const RECORDS = RAW_DATA.records;       // array de linhas
+const MES_ORDER = Object.keys(MESES);
+const CANAIS = ['Google Ads', 'Meta Ads', 'LinkedIn Ads'];
+const CANAL_CLASS = {'Google Ads': 'google', 'Meta Ads': 'meta', 'LinkedIn Ads': 'linkedin'};
+const CANAL_COLOR = {'Google Ads': '#4285F4', 'Meta Ads': '#7b4fd6', 'LinkedIn Ads': '#0a66c2'};
+
+const state = {
+  mes: new Set(MES_ORDER),
+  canal: new Set(CANAIS),
+  conta: new Set(Object.keys(CONTAS)),
+  buCanal: new Set(CANAIS),
+  sortKey: 'investimento',
+  sortDir: 1,
+  buSortKey: 'investimento',
+  buSortDir: 1,
+  search: ''
+};
+
+const fmtMoney = v => 'R$ ' + (v || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const fmtInt = v => Math.round(v || 0).toLocaleString('pt-BR');
+const fmtPct = v => (v || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%';
+const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function withMetrics(r) {
+  const ctr = r.impressoes > 0 ? (r.cliques / r.impressoes) * 100 : 0;
+  const cpc = r.cliques > 0 ? r.investimento / r.cliques : 0;
+  const cpm = r.impressoes > 0 ? (r.investimento / r.impressoes) * 1000 : 0;
+  const cpl = r.leads > 0 ? r.investimento / r.leads : 0;
+  const cpa = r.conv > 0 ? r.investimento / r.conv : 0;
+  return Object.assign({}, r, {ctr, cpc, cpm, cpl, cpa});
+}
+const ALL = RECORDS.map(withMetrics);
+
+/* ---------- filter builders ---------- */
+function buildChips(containerId, options, selectedSet, onChange) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  options.forEach(opt => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (selectedSet.has(opt.key) ? ' active' : '');
+    chip.textContent = opt.label;
+    chip.onclick = () => {
+      if (selectedSet.has(opt.key)) {
+        if (selectedSet.size > 1) selectedSet.delete(opt.key);
+      } else {
+        selectedSet.add(opt.key);
+      }
+      buildChips(containerId, options, selectedSet, onChange);
+      onChange();
+    };
+    el.appendChild(chip);
+  });
+}
+
+function initFilters() {
+  buildChips('mesFilter', MES_ORDER.map(k => ({key: k, label: MESES[k]})), state.mes, renderAll);
+  buildChips('canalFilter', CANAIS.map(k => ({key: k, label: k})), state.canal, renderAll);
+  buildChips('contaFilter', Object.keys(CONTAS).map(k => ({key: k, label: CONTAS[k]})), state.conta, renderAll);
+  buildChips('buCanalFilter', CANAIS.map(k => ({key: k, label: k})), state.buCanal, renderBuSection);
+
+  const badges = document.getElementById('periodBadges');
+  badges.innerHTML = MES_ORDER.map(k => `<span class="badge">${MESES[k]}</span>`).join('');
+
+  document.getElementById('tableSearch').addEventListener('input', e => {
+    state.search = e.target.value.toLowerCase();
+    renderTable();
+  });
+  document.getElementById('exportCsv').addEventListener('click', exportCsv);
+
+  document.querySelectorAll('#detailTable thead th').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (state.sortKey === key) state.sortDir *= -1; else { state.sortKey = key; state.sortDir = -1; }
+      renderTable();
+    });
+  });
+  document.querySelectorAll('#buTable thead th').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (state.buSortKey === key) state.buSortDir *= -1; else { state.buSortKey = key; state.buSortDir = -1; }
+      renderBuTable();
+    });
+  });
+}
+
+function filteredMain() {
+  return ALL.filter(r => state.mes.has(r.mes) && state.canal.has(r.canal) && state.conta.has(r.conta));
+}
+function filteredBu() {
+  return ALL.filter(r => state.mes.has(r.mes) && state.buCanal.has(r.canal));
+}
+
+/* ---------- charts registry (to destroy/re-create) ---------- */
+const chartRegistry = {};
+function upsertChart(id, config) {
+  if (chartRegistry[id]) chartRegistry[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  chartRegistry[id] = new Chart(ctx, config);
+}
+
+/* ---------- KPIs ---------- */
+function renderKpis(rows) {
+  const inv = rows.reduce((s, r) => s + r.investimento, 0);
+  const imp = rows.reduce((s, r) => s + r.impressoes, 0);
+  const clk = rows.reduce((s, r) => s + r.cliques, 0);
+  const leads = rows.reduce((s, r) => s + r.leads, 0);
+  const conv = rows.reduce((s, r) => s + r.conv, 0);
+  const ctr = imp > 0 ? (clk / imp) * 100 : 0;
+  const cpl = leads > 0 ? inv / leads : 0;
+
+  const kpis = [
+    {label: 'Investimento', value: fmtMoney(inv), sub: `${rows.length} linhas de campanha`},
+    {label: 'Impressões', value: fmtInt(imp), sub: 'Alcance total das campanhas'},
+    {label: 'Cliques', value: fmtInt(clk), sub: `CTR médio ${fmtPct(ctr)}`},
+    {label: 'CTR médio', value: fmtPct(ctr), sub: 'Cliques / Impressões'},
+    {label: 'Leads', value: fmtInt(leads), sub: `CPL médio ${fmtMoney(cpl)}`},
+    {label: 'Conversões', value: fmtInt(conv), sub: `CPA médio ${conv > 0 ? fmtMoney(inv/conv) : '—'}`},
+  ];
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+/* ---------- group helpers ---------- */
+function groupBy(rows, keyFn) {
+  const map = new Map();
+  rows.forEach(r => {
+    const k = keyFn(r);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(r);
+  });
+  return map;
+}
+function sumField(rows, field) { return rows.reduce((s, r) => s + (r[field] || 0), 0); }
+
+/* ---------- charts: overview ---------- */
+function renderOverviewCharts(rows) {
+  // Investimento por canal (doughnut)
+  const byCanal = groupBy(rows, r => r.canal);
+  const canalLabels = CANAIS.filter(c => byCanal.has(c));
+  const canalInv = canalLabels.map(c => sumField(byCanal.get(c), 'investimento'));
+  upsertChart('chartInvCanal', {
+    type: 'doughnut',
+    data: {
+      labels: canalLabels,
+      datasets: [{data: canalInv, backgroundColor: canalLabels.map(c => CANAL_COLOR[c]), borderWidth: 0}]
+    },
+    options: {plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, font: {size: 11}}}}}
+  });
+
+  // Top campanhas por investimento
+  const byCamp = groupBy(rows, r => r.conta + ' · ' + r.campanha);
+  const campTotals = Array.from(byCamp.entries()).map(([k, v]) => ({
+    label: k, canal: v[0].canal, investimento: sumField(v, 'investimento')
+  })).sort((a, b) => b.investimento - a.investimento).slice(0, 8);
+  upsertChart('chartTopCampanhas', {
+    type: 'bar',
+    data: {
+      labels: campTotals.map(c => c.label.length > 34 ? c.label.slice(0, 34) + '…' : c.label),
+      datasets: [{
+        data: campTotals.map(c => c.investimento),
+        backgroundColor: campTotals.map(c => CANAL_COLOR[c.canal] || '#999'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: {legend: {display: false}},
+      scales: {x: {ticks: {callback: v => 'R$ ' + v.toLocaleString('pt-BR')}}}
+    }
+  });
+
+  // Leads por canal (barra volume + linha CPL)
+  const leadsVol = canalLabels.map(c => sumField(byCanal.get(c), 'leads'));
+  const leadsCpl = canalLabels.map((c, i) => {
+    const inv = sumField(byCanal.get(c), 'investimento');
+    return leadsVol[i] > 0 ? inv / leadsVol[i] : 0;
+  });
+  upsertChart('chartLeads', dualBarLineConfig(canalLabels, leadsVol, leadsCpl, 'Leads', 'CPL (R$)'));
+
+  // Conversões por canal
+  const convVol = canalLabels.map(c => sumField(byCanal.get(c), 'conv'));
+  const convCpa = canalLabels.map((c, i) => {
+    const inv = sumField(byCanal.get(c), 'investimento');
+    return convVol[i] > 0 ? inv / convVol[i] : 0;
+  });
+  upsertChart('chartConv', dualBarLineConfig(canalLabels, convVol, convCpa, 'Conversões', 'CPA (R$)'));
+
+  // CTR por canal
+  const ctrVals = canalLabels.map(c => {
+    const g = byCanal.get(c);
+    const imp = sumField(g, 'impressoes'), clk = sumField(g, 'cliques');
+    return imp > 0 ? (clk / imp) * 100 : 0;
+  });
+  upsertChart('chartCtr', simpleBarConfig(canalLabels, ctrVals, canalLabels.map(c => CANAL_COLOR[c]), v => v.toFixed(2) + '%'));
+
+  // CPM por canal
+  const cpmVals = canalLabels.map(c => {
+    const g = byCanal.get(c);
+    const inv = sumField(g, 'investimento'), imp = sumField(g, 'impressoes');
+    return imp > 0 ? (inv / imp) * 1000 : 0;
+  });
+  upsertChart('chartCpm', simpleBarConfig(canalLabels, cpmVals, canalLabels.map(c => CANAL_COLOR[c]), v => 'R$ ' + v.toFixed(2)));
+}
+
+function dualBarLineConfig(labels, barData, lineData, barLabel, lineLabel) {
+  return {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {type: 'bar', label: barLabel, data: barData, backgroundColor: '#3454d1', borderRadius: 4, yAxisID: 'y'},
+        {type: 'line', label: lineLabel, data: lineData, borderColor: '#c8811c', backgroundColor: '#c8811c', tension: .3, yAxisID: 'y1'}
+      ]
+    },
+    options: {
+      plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, font: {size: 11}}}},
+      scales: {
+        y: {beginAtZero: true, position: 'left'},
+        y1: {beginAtZero: true, position: 'right', grid: {drawOnChartArea: false}}
+      }
+    }
+  };
+}
+function simpleBarConfig(labels, data, colors, fmt) {
+  return {
+    type: 'bar',
+    data: {labels, datasets: [{data, backgroundColor: colors, borderRadius: 4}]},
+    options: {
+      plugins: {legend: {display: false}, tooltip: {callbacks: {label: ctx => fmt(ctx.raw)}}},
+      scales: {y: {beginAtZero: true, ticks: {callback: fmt}}}
+    }
+  };
+}
+
+/* ---------- detail table ---------- */
+function renderTable() {
+  let rows = filteredMain();
+  if (state.search) rows = rows.filter(r => r.campanha.toLowerCase().includes(state.search));
+  rows.sort((a, b) => {
+    const av = a[state.sortKey], bv = b[state.sortKey];
+    if (typeof av === 'string') return av.localeCompare(bv) * state.sortDir * -1;
+    return (av - bv) * state.sortDir * -1;
+  });
+  document.getElementById('tableCount').textContent = `${rows.length} campanhas`;
+  document.getElementById('detailBody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${MESES[r.mes]}</td>
+      <td>${CONTAS[r.conta]}</td>
+      <td><span class="tag ${CANAL_CLASS[r.canal]}">${r.canal.replace(' Ads','')}</span></td>
+      <td>${escHtml(r.campanha)}</td>
+      <td>${fmtMoney(r.investimento)}</td>
+      <td>${fmtInt(r.impressoes)}</td>
+      <td>${fmtInt(r.cliques)}</td>
+      <td>${fmtPct(r.ctr)}</td>
+      <td>${fmtMoney(r.cpc)}</td>
+      <td>${fmtMoney(r.cpm)}</td>
+      <td>${fmtInt(r.leads)}</td>
+      <td>${r.leads > 0 ? fmtMoney(r.cpl) : '—'}</td>
+      <td>${fmtInt(r.conv)}</td>
+      <td>${r.conv > 0 ? fmtMoney(r.cpa) : '—'}</td>
+    </tr>`).join('');
+}
+
+/* ---------- BU section ---------- */
+function renderBuSection() {
+  const rows = filteredBu();
+  renderBuTable(); // tabela primeiro
+  try {
+    renderBuCharts(rows);
+  } catch (e) {
+    console.error('Falha ao renderizar gráficos de BU (Chart.js pode não ter carregado):', e);
+  }
+}
+
+function renderBuCharts(rows) {
+  const byBu = groupBy(rows, r => r.conta);
+  const buLabels = Object.keys(CONTAS).filter(k => byBu.has(k));
+  const buInv = buLabels.map(k => sumField(byBu.get(k), 'investimento'));
+
+  upsertChart('chartInvBu', {
+    type: 'pie',
+    data: {
+      labels: buLabels.map(k => CONTAS[k]),
+      datasets: [{data: buInv, backgroundColor: ['#3454d1', '#7b4fd6', '#0a66c2', '#c8811c'], borderWidth: 0}]
+    },
+    options: {plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, font: {size: 11}}}}}
+  });
+
+  const byCamp = groupBy(rows, r => CONTAS[r.conta] + ' · ' + r.campanha);
+  const campTotals = Array.from(byCamp.entries()).map(([k, v]) => ({
+    label: k, canal: v[0].canal, investimento: sumField(v, 'investimento')
+  })).sort((a, b) => b.investimento - a.investimento).slice(0, 8);
+  upsertChart('chartTopBu', {
+    type: 'bar',
+    data: {
+      labels: campTotals.map(c => c.label.length > 34 ? c.label.slice(0, 34) + '…' : c.label),
+      datasets: [{
+        data: campTotals.map(c => c.investimento),
+        backgroundColor: campTotals.map(c => CANAL_COLOR[c.canal] || '#999'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: {legend: {display: false}},
+      scales: {x: {ticks: {callback: v => 'R$ ' + v.toLocaleString('pt-BR')}}}
+    }
+  });
+}
+
+function renderBuTable() {
+  let rows = filteredBu();
+  rows.sort((a, b) => {
+    const av = a[state.buSortKey], bv = b[state.buSortKey];
+    if (typeof av === 'string') return av.localeCompare(bv) * state.buSortDir * -1;
+    return (av - bv) * state.buSortDir * -1;
+  });
+  document.getElementById('buBody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${MESES[r.mes]}</td>
+      <td>${CONTAS[r.conta]}</td>
+      <td><span class="tag ${CANAL_CLASS[r.canal]}">${r.canal.replace(' Ads','')}</span></td>
+      <td>${escHtml(r.campanha)}</td>
+      <td>${fmtMoney(r.investimento)}</td>
+      <td>${fmtInt(r.impressoes)}</td>
+      <td>${fmtInt(r.cliques)}</td>
+      <td>${fmtPct(r.ctr)}</td>
+      <td>${fmtMoney(r.cpc)}</td>
+      <td>${fmtMoney(r.cpm)}</td>
+      <td>${fmtInt(r.leads)}</td>
+      <td>${fmtInt(r.conv)}</td>
+      <td>${r.conv > 0 ? fmtMoney(r.cpa) : '—'}</td>
+    </tr>`).join('');
+}
+
+/* ---------- export ---------- */
+function exportCsv() {
+  const rows = filteredMain();
+  const header = ['Mes','Conta','Canal','Campanha','Investimento','Impressoes','Cliques','CTR','CPC','CPM','Leads','CPL','Conv','CPA'];
+  const lines = [header.join(';')];
+  rows.forEach(r => {
+    lines.push([
+      MESES[r.mes], CONTAS[r.conta], r.canal, '"' + r.campanha.replace(/"/g,'""') + '"',
+      r.investimento.toFixed(2).replace('.', ','), Math.round(r.impressoes), Math.round(r.cliques),
+      r.ctr.toFixed(2).replace('.', ','), r.cpc.toFixed(2).replace('.', ','), r.cpm.toFixed(2).replace('.', ','),
+      Math.round(r.leads), r.cpl.toFixed(2).replace('.', ','), Math.round(r.conv), r.cpa.toFixed(2).replace('.', ',')
+    ].join(';'));
+  });
+  const blob = new Blob(['\ufeff' + lines.join('\n')], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'dashboard_performance.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- render all ---------- */
+function renderAll() {
+  const rows = filteredMain();
+  renderKpis(rows);
+  renderTable(); // tabela primeiro: garante que os dados apareçam mesmo se os gráficos falharem
+  try {
+    renderOverviewCharts(rows);
+  } catch (e) {
+    console.error('Falha ao renderizar gráficos (Chart.js pode não ter carregado):', e);
+  }
+}
+
+initFilters();
+renderAll();
+renderBuSection();
+
+</script>
+</body>
+</html>
